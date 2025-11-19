@@ -1,0 +1,23 @@
+# Ignore datasets
+data/
+*.zip
+
+# Ignore model checkpoints
+*.pth
+*.pt
+*.h5
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# venv
+venv/
+.env
+.envs
+
+# system files
+.DS_Store
