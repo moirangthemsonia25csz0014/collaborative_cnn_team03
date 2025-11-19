@@ -3,7 +3,7 @@ data/
 *.zip
 
 # Ignore model checkpoints
-*.pth
+# *.pth
 *.pt
 *.h5
 
