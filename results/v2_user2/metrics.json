@@ -1,0 +1,71 @@
+{
+    "accuracy": 0.7575757575757576,
+    "classification_report": {
+        "Apple___Apple_scab": {
+            "precision": 1.0,
+            "recall": 0.3333333333333333,
+            "f1-score": 0.5,
+            "support": 3
+        },
+        "Apple___Cedar_apple_rust": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 4
+        },
+        "Corn_(maize)___Common_rust_": {
+            "precision": 1.0,
+            "recall": 0.6666666666666666,
+            "f1-score": 0.8,
+            "support": 3
+        },
+        "Potato___Early_blight": {
+            "precision": 1.0,
+            "recall": 0.8,
+            "f1-score": 0.888888888888889,
+            "support": 5
+        },
+        "Potato___healthy": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+        },
+        "Tomato___Early_blight": {
+            "precision": 0.8571428571428571,
+            "recall": 1.0,
+            "f1-score": 0.923076923076923,
+            "support": 6
+        },
+        "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 6
+        },
+        "Tomato___healthy": {
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1-score": 0.6666666666666666,
+            "support": 4
+        },
+        "micro avg": {
+            "precision": 0.9615384615384616,
+            "recall": 0.7575757575757576,
+            "f1-score": 0.8474576271186441,
+            "support": 33
+        },
+        "macro avg": {
+            "precision": 0.8571428571428572,
+            "recall": 0.6625,
+            "f1-score": 0.7223290598290598,
+            "support": 33
+        },
+        "weighted avg": {
+            "precision": 0.9134199134199134,
+            "recall": 0.7575757575757576,
+            "f1-score": 0.8045325045325046,
+            "support": 33
+        }
+    }
+}
