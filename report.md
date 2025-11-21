@@ -255,12 +255,12 @@ Overall, the experiment demonstrates both the challenges and practical solutions
 User 1 actively contributed to the project by creating the base repository, setting up the initial directory structure, adding the `.gitignore`, committing the first version of the model (Model v1), pushing the `dev_user1` branch, and opening the first Pull Request for model integration. The screenshot below shows User 1's GitHub activity timeline, confirming these contributions.
 
 **User 1 Activity Screenshot:**  
-![User 1 Activity](../utils/user1_1.png)
-![User 1 Activity](../utils/user1_2.png)
+![User 1 Activity](utils/user1_1.png)
+![User 1 Activity](utils/user1_2.png)
 
 ### User 2 Activity
 
 User 2 contributed by forking the repository, testing User 1’s Model v1 on their own dataset, opening the issue with detailed results, creating the `dev_user2` branch, developing Model v2, and submitting the second Pull Request to the base repository. The screenshot below shows User 2's GitHub activity timeline as verification of these contributions.
 
 **User 2 Activity Screenshot:**  
-![User 2 Activity](../utils/user2.png)
+![User 2 Activity](utils/user2.png)
