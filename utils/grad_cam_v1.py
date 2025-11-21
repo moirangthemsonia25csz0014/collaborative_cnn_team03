@@ -1,4 +1,5 @@
 
+
 import os
 from typing import Tuple, Optional
 
@@ -12,7 +13,6 @@ from torchvision import transforms
 
 
 def locate_final_conv_layer(network: torch.nn.Module) -> torch.nn.Module:
-    """Identify the last convolutional layer in the network architecture."""
     target_layer = None
     for layer in network.modules():
         if isinstance(layer, torch.nn.Conv2d):
@@ -22,14 +22,12 @@ def locate_final_conv_layer(network: torch.nn.Module) -> torch.nn.Module:
     return target_layer
 
 
-
 def attach_activation_tensor_hook(conv_module: torch.nn.Module, feature_storage: dict, gradient_storage: dict):
-
+    
     handles = []
 
     def forward_hook(module, inp, out):
-        
-        feature_storage['features'] = out.detach()
+        feature_storage['features'] = out
 
         def tensor_grad_hook(grad):
             gradient_storage['gradients'] = grad.detach()
@@ -54,23 +52,31 @@ def compute_activation_map(network: torch.nn.Module, input_data: torch.Tensor,
 
     input_data = input_data.to(computation_device)
 
+    input_data.requires_grad_(True)
+
     conv_layer = locate_final_conv_layer(network)
     feature_store = {}
     gradient_store = {}
 
+    params = list(network.parameters())
+    orig_requires = [p.requires_grad for p in params]
+    _restored_params = False
+    if not any(orig_requires):
+        for p in params:
+            p.requires_grad = True
+        _restored_params = True
+
     handles = attach_activation_tensor_hook(conv_layer, feature_store, gradient_store)
 
-    model_output = network(input_data)
+    with torch.enable_grad():
+        model_output = network(input_data)
 
-    if class_index is None:
-        class_index = int(model_output.argmax(dim=1).item())
+        if class_index is None:
+            class_index = int(model_output.argmax(dim=1).item())
 
-    target_score = model_output[:, class_index]
-    network.zero_grad()
-    target_score.backward(retain_graph=True)
-
-    captured_features = feature_store.get('features')
-    captured_gradients = gradient_store.get('gradients')
+        target_score = model_output[:, class_index]
+        network.zero_grad()
+        target_score.backward(retain_graph=False)
 
     for h in handles:
         try:
@@ -78,8 +84,20 @@ def compute_activation_map(network: torch.nn.Module, input_data: torch.Tensor,
         except Exception:
             pass
 
+    if _restored_params:
+        for p, orig in zip(params, orig_requires):
+            p.requires_grad = orig
+
+    captured_features = feature_store.get('features')
+    captured_gradients = gradient_store.get('gradients')
+
     if captured_features is None or captured_gradients is None:
-        raise RuntimeError("Hook capture failed during Grad-CAM computation.")
+        raise RuntimeError(
+            "Hook capture failed during Grad-CAM computation. "
+            "Possible causes: forward was under torch.no_grad(), "
+            "or activation tensor didn't require grad. "
+            "Make sure input.requires_grad_(True) and model is runnable with grad."
+        )
 
     channel_weights = torch.mean(captured_gradients, dim=(2, 3), keepdim=True)
     weighted_activation = channel_weights * captured_features
@@ -90,7 +108,7 @@ def compute_activation_map(network: torch.nn.Module, input_data: torch.Tensor,
     if activation_map.max() != 0:
         activation_map = activation_map / activation_map.max()
 
-    heatmap_array = activation_map.cpu().numpy()
+    heatmap_array = activation_map.detach().cpu().numpy()
     return heatmap_array, int(class_index)
 
 
@@ -101,7 +119,7 @@ def apply_colormap_matplotlib(heatmap_data: np.ndarray, color_scheme: str = 'jet
     return rgb_output
 
 
-def blend_heatmap_with_image(source_image: Image.Image, activation_heatmap: np.ndarray, 
+def blend_heatmap_with_image(source_image: Image.Image, activation_heatmap: np.ndarray,
                              transparency: float = 0.45, color_scheme: str = 'jet') -> Image.Image:
     img_array = np.array(source_image.convert('RGB'))
     height, width = img_array.shape[:2]
@@ -116,45 +134,47 @@ def blend_heatmap_with_image(source_image: Image.Image, activation_heatmap: np.n
     image_layer = img_array.astype(np.float32)
     blended_output = image_layer * (1 - transparency) + heatmap_layer * transparency
     blended_output = np.uint8(np.clip(blended_output, 0, 255))
-    
+
     return Image.fromarray(blended_output)
 
 
-def visualize_single_image(network: torch.nn.Module, source_image: Image.Image, 
-                          preprocessing: transforms.Compose,
-                          computation_device: Optional[str] = None, 
-                          class_index: Optional[int] = None,
-                          transparency: float = 0.45, 
-                          color_scheme: str = 'jet') -> Tuple[Image.Image, np.ndarray, int]:
-    
+def visualize_single_image(network: torch.nn.Module, source_image: Image.Image,
+                           preprocessing: transforms.Compose,
+                           computation_device: Optional[str] = None,
+                           class_index: Optional[int] = None,
+                           transparency: float = 0.45,
+                           color_scheme: str = 'jet') -> Tuple[Image.Image, np.ndarray, int]:
+
     network.eval()
-    
+
     if computation_device is None:
         computation_device = next(network.parameters()).device
     else:
         computation_device = torch.device(computation_device)
 
     tensor_input = preprocessing(source_image).unsqueeze(0).to(computation_device)
-    heatmap, predicted_class = compute_activation_map(network, tensor_input, 
-                                                      class_index=class_index, 
+    tensor_input.requires_grad_(True)
+
+    heatmap, predicted_class = compute_activation_map(network, tensor_input,
+                                                      class_index=class_index,
                                                       computation_device=computation_device)
-    blended_image = blend_heatmap_with_image(source_image, heatmap, 
-                                            transparency=transparency, 
+    blended_image = blend_heatmap_with_image(source_image, heatmap,
+                                            transparency=transparency,
                                             color_scheme=color_scheme)
-    
+
     return blended_image, heatmap, predicted_class
 
 
-def export_batch_visualizations(network: torch.nn.Module, data_loader, category_names, 
+def export_batch_visualizations(network: torch.nn.Module, data_loader, category_names,
                                 preprocessing: transforms.Compose,
-                                output_directory: str = "../results/gradcam", 
+                                output_directory: str = "../results/gradcam",
                                 computation_device: Optional[str] = None,
-                                sample_count: int = 12, 
-                                start_position: int = 0, 
+                                sample_count: int = 12,
+                                start_position: int = 0,
                                 color_scheme: str = 'jet'):
-  
+
     os.makedirs(output_directory, exist_ok=True)
-    
+
     if computation_device is None:
         computation_device = next(network.parameters()).device
     else:
@@ -170,7 +190,7 @@ def export_batch_visualizations(network: torch.nn.Module, data_loader, category_
 
     while processed < sample_count and position < dataset_length:
         image_path, true_label = source_dataset.samples[position]
-        
+
         try:
             pil_image = Image.open(image_path).convert('RGB')
         except Exception:
@@ -178,20 +198,20 @@ def export_batch_visualizations(network: torch.nn.Module, data_loader, category_
             continue
 
         blended, heatmap, prediction = visualize_single_image(
-            network, pil_image, preprocessing=preprocessing, 
-            computation_device=computation_device, transparency=0.45, 
+            network, pil_image, preprocessing=preprocessing,
+            computation_device=computation_device, transparency=0.45,
             color_scheme=color_scheme
         )
 
         file_base = os.path.splitext(os.path.basename(image_path))[0]
         sanitized_class = category_names[true_label].replace(' ', '_')
-        
+
         overlay_filename = os.path.join(
-            output_directory, 
+            output_directory,
             f"{processed+1:03d}_{sanitized_class}_true{true_label}_pred{prediction}_{file_base}_overlay.png"
         )
         heatmap_filename = os.path.join(
-            output_directory, 
+            output_directory,
             f"{processed+1:03d}_{sanitized_class}_true{true_label}_pred{prediction}_{file_base}_heat.png"
         )
 
